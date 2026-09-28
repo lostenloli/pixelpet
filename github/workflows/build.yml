@@ -1,0 +1,53 @@
+name: Собрать APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Распаковать проект (если загружен архивом)
+        id: src
+        run: |
+          if [ -f pixelpet.zip ]; then
+            unzip -o -q pixelpet.zip -d build_src
+            echo "dir=build_src" >> "$GITHUB_OUTPUT"
+          else
+            echo "dir=." >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Сборка
+        working-directory: ${{ steps.src.outputs.dir }}
+        run: gradle --no-daemon assembleRelease
+
+      - name: Переименовать APK
+        run: cp ${{ steps.src.outputs.dir }}/app/build/outputs/apk/release/*.apk PixelPet.apk
+
+      - name: Сохранить как файл сборки
+        uses: actions/upload-artifact@v4
+        with:
+          name: PixelPet-apk
+          path: PixelPet.apk
+
+      - name: Выложить в Releases (прямая ссылка на APK)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Пиксель — сборка ${{ github.run_number }}
+          files: PixelPet.apk
